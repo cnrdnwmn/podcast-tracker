@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Podcast Tracker</title>
+
+<!-- PWA -->
+<meta name="application-name" content="Podcast Tracker">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Podcast">
+<meta name="theme-color" content="#0e0e10">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="data:application/json;charset=utf-8,{
+  &quot;name&quot;: &quot;Podcast Tracker&quot;,
+  &quot;short_name&quot;: &quot;Podcast&quot;,
+  &quot;description&quot;: &quot;Tracker odcinków i shortów&quot;,
+  &quot;start_url&quot;: &quot;.&quot;,
+  &quot;display&quot;: &quot;standalone&quot;,
+  &quot;background_color&quot;: &quot;%230e0e10&quot;,
+  &quot;theme_color&quot;: &quot;%230e0e10&quot;,
+  &quot;orientation&quot;: &quot;portrait&quot;,
+  &quot;icons&quot;: [{&quot;src&quot;: &quot;data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230e0e10'/><text y='.9em' font-size='80'>🎙</text></svg>&quot;, &quot;sizes&quot;: &quot;any&quot;, &quot;type&quot;: &quot;image/svg+xml&quot;}]
+}">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0e0e10;
+    --surface: #18181c;
+    --surface2: #222228;
+    --border: #2e2e38;
+    --accent: #f0c040;
+    --accent2: #e05a2b;
+    --text: #e8e8f0;
+    --muted: #888898;
+    --podcast: #4a9eff;
+    --shorts: #f05090;
+    --planned: #50d0a0;
+    --draft: #f0a030;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* HEADER */
+  header {
+    padding: 32px 40px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: var(--accent); }
+
+  .io-btns { display: flex; gap: 8px; }
+  .btn-io {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--surface2);
+    color: var(--muted);
+  }
+  .btn-io.export { border-color: #50d0a0; color: #50d0a0; }
+  .btn-io.export:hover { background: rgba(80,208,160,0.1); }
+  .btn-io.import { border-color: var(--podcast); color: var(--podcast); }
+  .btn-io.import:hover { background: rgba(74,158,255,0.1); }
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--surface2); border: 1px solid var(--accent);
+    color: var(--accent); padding: 12px 20px; border-radius: 10px;
+    font-size: 12px; z-index: 999; opacity: 0;
+    transition: opacity 0.3s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 4px;
+    border: 1px solid var(--border);
+  }
+  .tab {
+    padding: 8px 20px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.3px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+  .tab.active { background: var(--accent); color: #0e0e10; }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  /* STATS BAR */
+  .stats {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .stat {
+    padding: 16px 32px;
+    border-right: 1px solid var(--border);
+    flex: 1;
+    min-width: 0;
+  }
+  .stat-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .stat-label { font-size: 10px; color: var(--muted); margin-top: 4px; letter-spacing: 1px; text-transform: uppercase; }
+  .stat-num.p { color: var(--podcast); }
+  .stat-num.s { color: var(--shorts); }
+  .stat-num.pl { color: var(--planned); }
+
+  /* MAIN LAYOUT */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* MIND MAP VIEW */
+  #mindmap-view {
+    padding: 32px 40px;
+  }
+
+  .mindmap-container {
+    position: relative;
+    width: 100%;
+    min-height: 600px;
+  }
+
+  svg#mindmap {
+    width: 100%;
+    height: 600px;
+    overflow: visible;
+  }
+
+  .mindmap-legend {
+    display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 24px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* EPISODES TABLE */
+  #episodes-view { padding: 32px 40px; }
+
+  .toolbar {
+    display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center;
+  }
+
+  .btn {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+  .btn-primary { background: var(--accent); color: #0e0e10; }
+  .btn-primary:hover { background: #ffd060; }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  .filter-group { display: flex; gap: 4px; }
+  .filter-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-btn.active, .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-btn[data-type="podcast"].active { border-color: var(--podcast); color: var(--podcast); }
+  .filter-btn[data-type="short"].active { border-color: var(--shorts); color: var(--shorts); }
+
+  .episode-table { width: 100%; border-collapse: collapse; }
+  .episode-table th {
+    font-family: 'Syne', sans-serif;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: left;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .episode-row {
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .episode-row:hover { background: var(--surface); }
+  .episode-row td { padding: 14px 16px; font-size: 12px; vertical-align: middle; }
+
+  .type-badge {
+    display: inline-block;
+    font-family: 'Syne', sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .type-podcast { background: rgba(74,158,255,0.15); color: var(--podcast); }
+  .type-short { background: rgba(240,80,144,0.15); color: var(--shorts); }
+
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .status-published { background: var(--planned); }
+  .status-planned { background: var(--draft); }
+  .status-draft { background: var(--muted); }
+
+  .ep-title { font-weight: 500; color: var(--text); }
+  .ep-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .ep-topics { display: flex; gap: 4px; flex-wrap: wrap; }
+  .topic-tag {
+    font-size: 9px;
+    padding: 2px 7px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--muted);
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px;
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 24px;
+    color: var(--accent);
+  }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: 1 / -1; }
+  label { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+  input, select, textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 80px; }
+  select option { background: var(--surface); }
+
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+  .btn-danger { background: #c0392b; color: white; }
+  .btn-danger:hover { background: #e74c3c; }
+
+  /* PLAN VIEW */
+  #plan-view { padding: 32px 40px; }
+  .week-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .week-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .week-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .plan-slot {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .plan-slot-icon { font-size: 18px; line-height: 1; margin-top: 2px; }
+  .plan-slot-content { flex: 1; min-width: 0; }
+  .plan-slot-name { font-size: 12px; font-weight: 500; }
+  .plan-slot-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .plan-slot.empty { border-style: dashed; opacity: 0.4; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  @media (max-width: 600px) {
+    header, #episodes-view, #mindmap-view, #plan-view { padding: 20px; }
+    .stat { padding: 12px 16px; }
+    .stat-num { font-size: 20px; }
+    .form-grid { grid-template-columns: 1fr; }
+  }
+
+  /* MOBILE TOUCH IMPROVEMENTS */
+  @media (max-width: 768px) {
+    .tab { padding: 10px 14px; font-size: 12px; }
+    .btn { min-height: 44px; }
+    .episode-row td { padding: 12px 10px; }
+    .filter-btn { min-height: 40px; padding: 8px 12px; }
+    /* Larger modal on mobile */
+    .modal { padding: 20px; border-radius: 0; max-height: 100vh; margin: 0; border-radius: 14px 14px 0 0; }
+    .modal-overlay { align-items: flex-end; padding: 0; }
+    input, select, textarea { font-size: 16px; } /* prevents iOS zoom */
+    /* hide some table columns on small screens */
+    .episode-table th:nth-child(5),
+    .episode-table td:nth-child(5),
+    .episode-table th:nth-child(7),
+    .episode-table td:nth-child(7) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🎙 <span>PODCAST</span>TRACKER</div>
+  <div class="io-btns">
+    <button class="btn-io export" onclick="exportData()">💾 Eksportuj dane</button>
+    <button class="btn-io import" onclick="document.getElementById('import-file').click()">📂 Importuj dane</button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)">
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('episodes')">📋 Odcinki</button>
+    <button class="tab" onclick="switchTab('plan')">📅 Plan</button>
+    <button class="tab" onclick="switchTab('mindmap')">🗺 Mapa myśli</button>
+  </div>
+</header>
+
+<div class="stats" id="stats-bar"></div>
+
+<!-- EPISODES VIEW -->
+<div id="episodes-view" class="view active">
+  <div class="toolbar">
+    <button class="btn btn-primary" onclick="openModal()">+ Nowy wpis</button>
+    <div class="filter-group">
+      <button class="filter-btn active" data-type="all" onclick="setFilter('all', this)">Wszystkie</button>
+      <button class="filter-btn" data-type="podcast" onclick="setFilter('podcast', this)">🎙 Podcast</button>
+      <button class="filter-btn" data-type="short" onclick="setFilter('short', this)">📱 Short</button>
+    </div>
+    <div class="filter-group">
+      <button class="filter-btn active" data-status="all" onclick="setStatusFilter('all', this)">Wszystkie statusy</button>
+      <button class="filter-btn" data-status="published" onclick="setStatusFilter('published', this)">Opublikowane</button>
+      <button class="filter-btn" data-status="planned" onclick="setStatusFilter('planned', this)">Zaplanowane</button>
+      <button class="filter-btn" data-status="draft" onclick="setStatusFilter('draft', this)">Szkice</button>
+    </div>
+  </div>
+  <table class="episode-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Typ</th>
+        <th>Tytuł / Temat</th>
+        <th>Tematy / Tagi</th>
+        <th>Lokalizacja</th>
+        <th>Status</th>
+        <th>Data</th>
+      </tr>
+    </thead>
+    <tbody id="episodes-tbody"></tbody>
+  </table>
+</div>
+
+<!-- PLAN VIEW -->
+<div id="plan-view" class="view">
+  <div style="margin-bottom:20px; display:flex; gap:12px; align-items:center;">
+    <span style="font-family:Syne;font-size:18px;font-weight:800;">Plan publikacji</span>
+    <button class="btn btn-ghost" onclick="openModal()">+ Dodaj</button>
+  </div>
+  <div class="week-grid" id="week-grid"></div>
+</div>
+
+<!-- MIND MAP VIEW -->
+<div id="mindmap-view" class="view">
+  <div class="mindmap-legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--podcast)"></div> Podcast (audio)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--shorts)"></div> Short (wideo pionowe)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--planned)"></div> Zaplanowane</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--draft)"></div> Szkic / Pomysł</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--muted)"></div> Opublikowane</div>
+  </div>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;overflow:auto;">
+    <svg id="mindmap" viewBox="0 0 900 560"></svg>
+  </div>
+  <p style="font-size:10px;color:var(--muted);margin-top:12px;text-align:center;">Mapa aktualizuje się automatycznie po dodaniu odcinków · Kliknij węzeł by zobaczyć szczegóły</p>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Nowy wpis</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Typ</label>
+        <select id="f-type">
+          <option value="podcast">🎙 Podcast (odcinek audio)</option>
+          <option value="short">📱 Short (wideo pionowe)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select id="f-status">
+          <option value="planned">📅 Zaplanowane</option>
+          <option value="draft">✏️ Szkic / Pomysł</option>
+          <option value="published">✅ Opublikowane</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Tytuł / Temat główny</label>
+        <input id="f-title" type="text" placeholder="np. Ulica Floriańska — historia i architektura">
+      </div>
+      <div class="form-group full">
+        <label>Co mówiłem / Co planuję omówić</label>
+        <textarea id="f-notes" placeholder="Krótkie notatki: co już powiedziałem, co chcę dograć, jakie fakty sprawdzić..."></textarea>
+      </div>
+      <div class="form-group full">
+        <label>Tematy / Tagi (oddzielone przecinkiem)</label>
+        <input id="f-tags" type="text" placeholder="np. architektura, historia, spacer, Kraków">
+      </div>
+      <div class="form-group">
+        <label>Lokalizacja / Miejsce</label>
+        <input id="f-location" type="text" placeholder="np. ul. Floriańska, Kraków">
+      </div>
+      <div class="form-group">
+        <label>Data nagrania / planowana</label>
+        <input id="f-date" type="date">
+      </div>
+      <div class="form-group">
+        <label>Numer odcinka</label>
+        <input id="f-num" type="text" placeholder="np. E12 lub S05">
+      </div>
+      <div class="form-group">
+        <label>Czas trwania (min)</label>
+        <input id="f-dur" type="number" placeholder="np. 35">
+      </div>
+      <div class="form-group full">
+        <label>Co jeszcze dograć / TODO</label>
+        <textarea id="f-todo" placeholder="np. sprawdzić datę budowy kamienicy, dograć komentarz eksperta..." style="min-height:60px;"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="btn-delete" onclick="deleteEntry()" style="display:none;">Usuń</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Anuluj</button>
+      <button class="btn btn-primary" onclick="saveEntry()">Zapisz</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DATA ────────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'podcast_tracker_v1';
+let editingId = null;
+let filterType = 'all';
+let filterStatus = 'all';
+
+function loadData() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
+}
+function saveData(d) { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
+function getData() { return loadData(); }
+
+
+
+// ── RENDER STATS ────────────────────────────────────────────────────────────
+function renderStats() {
+  const d = getData();
+  const pods = d.filter(e => e.type === 'podcast').length;
+  const shorts = d.filter(e => e.type === 'short').length;
+  const planned = d.filter(e => e.status === 'planned' || e.status === 'draft').length;
+  const published = d.filter(e => e.status === 'published').length;
+  document.getElementById('stats-bar').innerHTML = `
+    <div class="stat"><div class="stat-num p">${pods}</div><div class="stat-label">Odcinki podcast</div></div>
+    <div class="stat"><div class="stat-num s">${shorts}</div><div class="stat-label">Shorty wideo</div></div>
+    <div class="stat"><div class="stat-num pl">${published}</div><div class="stat-label">Opublikowane</div></div>
+    <div class="stat"><div class="stat-num" style="color:var(--draft)">${planned}</div><div class="stat-label">W planach / szkice</div></div>
+  `;
+}
+
+// ── RENDER EPISODES ─────────────────────────────────────────────────────────
+function renderEpisodes() {
+  let d = getData();
+  if (filterType !== 'all') d = d.filter(e => e.type === filterType);
+  if (filterStatus !== 'all') d = d.filter(e => e.status === filterStatus);
+  d.sort((a,b) => (b.date||'0').localeCompare(a.date||'0'));
+
+  const statusIcon = { published:'published', planned:'planned', draft:'draft' };
+  const tbody = document.getElementById('episodes-tbody');
+  tbody.innerHTML = d.map(e => `
+    <tr class="episode-row" onclick="openModal(${e.id})">
+      <td style="color:var(--muted);font-size:11px;">${e.num||'—'}</td>
+      <td><span class="type-badge type-${e.type}">${e.type==='podcast'?'🎙 Podcast':'📱 Short'}</span></td>
+      <td>
+        <div class="ep-title">${e.title}</div>
+        ${e.notes ? `<div class="ep-meta">${e.notes.substring(0,60)}${e.notes.length>60?'…':''}</div>` : ''}
+      </td>
+      <td><div class="ep-topics">${(e.tags||[]).slice(0,3).map(t=>`<span class="topic-tag">${t}</span>`).join('')}</div></td>
+      <td style="font-size:11px;color:var(--muted);">${e.location||'—'}</td>
+      <td>
+        <span class="status-dot status-${statusIcon[e.status]}"></span>
+        <span style="font-size:11px;">${e.status==='published'?'Opublikowane':e.status==='planned'?'Zaplanowane':'Szkic'}</span>
+        ${e.todo ? `<div style="font-size:9px;color:var(--accent2);margin-top:3px;">⚠ ma TODO</div>` : ''}
+      </td>
+      <td style="font-size:11px;color:var(--muted);">${e.date||'—'}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="7" style="padding:40px;text-align:center;color:var(--muted);">Brak wpisów · dodaj pierwszy odcinek!</td></tr>`;
+}
+
+// ── RENDER PLAN ──────────────────────────────────────────────────────────────
+function renderPlan() {
+  const d = getData();
+  const now = new Date();
+  const weeks = [];
+  for (let i = -1; i < 5; i++) {
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay() + 1 + i * 7);
+    const end = new Date(start); end.setDate(start.getDate() + 6);
+    const label = i === 0 ? 'Ten tydzień' : i === -1 ? 'Poprzedni tydzień' : `Za ${i} tydz.`;
+    const items = d.filter(e => {
+      if (!e.date) return false;
+      const ed = new Date(e.date);
+      return ed >= start && ed <= end;
+    });
+    weeks.push({ label, start, end, items });
+  }
+  document.getElementById('week-grid').innerHTML = weeks.map(w => `
+    <div class="week-card">
+      <div class="week-title">${w.label}<br><span style="font-weight:400;font-size:9px;">${fmtDate(w.start)} – ${fmtDate(w.end)}</span></div>
+      ${w.items.length ? w.items.map(e => `
+        <div class="plan-slot" onclick="openModal(${e.id})" style="cursor:pointer;">
+          <div class="plan-slot-icon">${e.type==='podcast'?'🎙':'📱'}</div>
+          <div class="plan-slot-content">
+            <div class="plan-slot-name">${e.title}</div>
+            <div class="plan-slot-meta">${e.date} · ${e.status==='published'?'✅ pub':e.status==='planned'?'📅 plan':'✏️ szkic'}</div>
+          </div>
+        </div>`).join('') : `<div class="plan-slot empty"><div class="plan-slot-icon">➕</div><div class="plan-slot-content"><div class="plan-slot-name">Brak zaplanowanych</div></div></div>`}
+    </div>
+  `).join('');
+}
+
+function fmtDate(d) { return d.toLocaleDateString('pl-PL', { day:'numeric', month:'short' }); }
+
+// ── MIND MAP ────────────────────────────────────────────────────────────────
+function renderMindmap() {
+  const d = getData();
+  const svg = document.getElementById('mindmap');
+  svg.innerHTML = '';
+
+  const W = 900, H = 560, CX = 450, CY = 280;
+
+  // Group by tags
+  const tagMap = {};
+  d.forEach(e => (e.tags||[]).forEach(t => {
+    if (!tagMap[t]) tagMap[t] = [];
+    tagMap[t].push(e);
+  }));
+
+  const topTags = Object.entries(tagMap).sort((a,b)=>b[1].length-a[1].length).slice(0,7);
+
+  const colors = { podcast:'#4a9eff', short:'#f05090', published:'#888898', planned:'#f0a030', draft:'#6060a0' };
+  const statusColor = e => e.status==='published'?colors.published:e.status==='planned'?colors.planned:colors.draft;
+  const typeColor = e => e.type==='podcast'?colors.podcast:colors.short;
+
+  // Center node
+  const cNode = mkEl('g');
+  cNode.innerHTML = `
+    <circle cx="${CX}" cy="${CY}" r="46" fill="#222228" stroke="#f0c040" stroke-width="2.5"/>
+    <text x="${CX}" y="${CY-6}" text-anchor="middle" fill="#f0c040" font-family="Syne,sans-serif" font-size="13" font-weight="800">🎙</text>
+    <text x="${CX}" y="${CY+10}" text-anchor="middle" fill="#f0c040" font-family="Syne,sans-serif" font-size="11" font-weight="700">PODCAST</text>
+    <text x="${CX}" y="${CY+24}" text-anchor="middle" fill="#888898" font-family="JetBrains Mono,monospace" font-size="9">${d.length} wpisów</text>
+  `;
+  svg.appendChild(cNode);
+
+  // Tag branches
+  topTags.forEach(([tag, episodes], ti) => {
+    const angle = (ti / topTags.length) * Math.PI * 2 - Math.PI / 2;
+    const tx = CX + Math.cos(angle) * 200;
+    const ty = CY + Math.sin(angle) * 180;
+
+    // Line center → tag
+    const line = mkEl('line');
+    setAttrs(line, { x1:CX, y1:CY, x2:tx, y2:ty, stroke:'#2e2e38', 'stroke-width':'1.5', 'stroke-dasharray':'4,3' });
+    svg.insertBefore(line, cNode);
+
+    // Tag node
+    const tg = mkEl('g');
+    tg.style.cursor = 'default';
+    tg.innerHTML = `
+      <ellipse cx="${tx}" cy="${ty}" rx="52" ry="22" fill="#18181c" stroke="#4a9eff" stroke-width="1.5"/>
+      <text x="${tx}" y="${ty+4}" text-anchor="middle" fill="#4a9eff" font-family="Syne,sans-serif" font-size="11" font-weight="700">${tag}</text>
+    `;
+    svg.appendChild(tg);
+
+    // Episode dots around tag
+    const shown = episodes.slice(0,4);
+    shown.forEach((ep, ei) => {
+      const ea = angle + (ei - (shown.length-1)/2) * 0.38;
+      const er = 85;
+      const ex = tx + Math.cos(ea) * er;
+      const ey = ty + Math.sin(ea) * er;
+
+      const eLine = mkEl('line');
+      setAttrs(eLine, { x1:tx, y1:ty, x2:ex, y2:ey, stroke:'#2e2e38', 'stroke-width':'1' });
+      svg.insertBefore(eLine, cNode);
+
+      const eg = mkEl('g');
+      eg.style.cursor = 'pointer';
+      eg.setAttribute('data-id', ep.id);
+      const col = typeColor(ep);
+      const sc = statusColor(ep);
+      eg.innerHTML = `
+        <circle cx="${ex}" cy="${ey}" r="18" fill="#18181c" stroke="${col}" stroke-width="1.5"/>
+        <circle cx="${ex+9}" cy="${ey-9}" r="5" fill="${sc}" stroke="#0e0e10" stroke-width="1"/>
+        <text x="${ex}" y="${ey+3}" text-anchor="middle" fill="${col}" font-family="JetBrains Mono,monospace" font-size="8">${ep.num||'?'}</text>
+        <title>${ep.title}</title>
+      `;
+      eg.addEventListener('click', () => openModal(ep.id));
+      svg.appendChild(eg);
+    });
+  });
+
+  // Untagged episodes
+  const tagged = new Set(d.flatMap(e => e.tags||[]));
+  const untagged = d.filter(e => !(e.tags||[]).length);
+  if (untagged.length) {
+    const ut = mkEl('text');
+    setAttrs(ut, { x: CX, y: H - 20, 'text-anchor':'middle', fill:'#555', 'font-family':'JetBrains Mono,monospace', 'font-size':'10' });
+    ut.textContent = `+ ${untagged.length} bez tagów`;
+    svg.appendChild(ut);
+  }
+}
+
+function mkEl(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+function setAttrs(el, attrs) { Object.entries(attrs).forEach(([k,v]) => el.setAttribute(k, v)); }
+
+// ── MODAL ───────────────────────────────────────────────────────────────────
+function openModal(id = null) {
+  editingId = id;
+  const d = getData();
+  const entry = id ? d.find(e => e.id === id) : null;
+
+  document.getElementById('modal-title').textContent = id ? 'Edytuj wpis' : 'Nowy wpis';
+  document.getElementById('btn-delete').style.display = id ? 'block' : 'none';
+
+  document.getElementById('f-type').value = entry?.type || 'podcast';
+  document.getElementById('f-status').value = entry?.status || 'planned';
+  document.getElementById('f-title').value = entry?.title || '';
+  document.getElementById('f-notes').value = entry?.notes || '';
+  document.getElementById('f-tags').value = (entry?.tags||[]).join(', ');
+  document.getElementById('f-location').value = entry?.location || '';
+  document.getElementById('f-date').value = entry?.date || '';
+  document.getElementById('f-num').value = entry?.num || '';
+  document.getElementById('f-dur').value = entry?.dur || '';
+  document.getElementById('f-todo').value = entry?.todo || '';
+
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  editingId = null;
+}
+
+function saveEntry() {
+  const d = getData();
+  const tags = document.getElementById('f-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+  const entry = {
+    id: editingId || Date.now(),
+    type: document.getElementById('f-type').value,
+    status: document.getElementById('f-status').value,
+    title: document.getElementById('f-title').value || 'Bez tytułu',
+    notes: document.getElementById('f-notes').value,
+    tags,
+    location: document.getElementById('f-location').value,
+    date: document.getElementById('f-date').value,
+    num: document.getElementById('f-num').value,
+    dur: parseInt(document.getElementById('f-dur').value) || 0,
+    todo: document.getElementById('f-todo').value,
+  };
+
+  if (editingId) {
+    const idx = d.findIndex(e => e.id === editingId);
+    if (idx >= 0) d[idx] = entry;
+  } else {
+    d.push(entry);
+  }
+  saveData(d);
+  closeModal();
+  renderAll();
+}
+
+function deleteEntry() {
+  if (!editingId) return;
+  if (!confirm('Na pewno usunąć ten wpis?')) return;
+  const d = getData().filter(e => e.id !== editingId);
+  saveData(d);
+  closeModal();
+  renderAll();
+}
+
+// ── FILTERS ──────────────────────────────────────────────────────────────────
+function setFilter(type, btn) {
+  filterType = type;
+  document.querySelectorAll('[data-type]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderEpisodes();
+}
+function setStatusFilter(status, btn) {
+  filterStatus = status;
+  document.querySelectorAll('[data-status]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderEpisodes();
+}
+
+// ── TABS ─────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById(tab + '-view').classList.add('active');
+  if (tab === 'mindmap') renderMindmap();
+  if (tab === 'plan') renderPlan();
+}
+
+// ── CLOSE MODAL ON OUTSIDE CLICK ─────────────────────────────────────────────
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+
+function renderAll() {
+  renderStats();
+  renderEpisodes();
+}
+
+// ── EXPORT / IMPORT ──────────────────────────────────────────────────────────
+function exportData() {
+  const d = getData();
+  const blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `podcast-tracker-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('✅ Dane wyeksportowane! Przenieś plik .json na inny komputer.');
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!Array.isArray(parsed)) throw new Error('Nieprawidłowy format');
+      if (confirm(`Importować ${parsed.length} wpisów? UWAGA: nadpisze obecne dane.`)) {
+        saveData(parsed);
+        renderAll();
+        showToast(`✅ Zaimportowano ${parsed.length} wpisów!`);
+      }
+    } catch (err) {
+      showToast('❌ Błąd: nieprawidłowy plik JSON');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+renderAll();
+
+// ── PWA SERVICE WORKER (inline) ───────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  const swCode = `
+    const CACHE = 'podcast-tracker-v1';
+    self.addEventListener('install', e => {
+      e.waitUntil(caches.open(CACHE).then(c => c.addAll([self.location.pathname])));
+      self.skipWaiting();
+    });
+    self.addEventListener('activate', e => {
+      e.waitUntil(caches.keys().then(keys =>
+        Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+      ));
+      self.clients.claim();
+    });
+    self.addEventListener('fetch', e => {
+      e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match(e.request))));
+    });
+  `;
+  const blob = new Blob([swCode], { type: 'application/javascript' });
+  const swUrl = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl).catch(() => {});
+}
+
+// ── INSTALL BANNER ────────────────────────────────────────────────────────
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const banner = document.getElementById('install-banner');
+  if (banner) banner.style.display = 'flex';
+});
+window.addEventListener('appinstalled', () => {
+  const banner = document.getElementById('install-banner');
+  if (banner) banner.style.display = 'none';
+  showToast('✅ Apka zainstalowana na ekranie głównym!');
+});
+
+function installApp() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+  } else {
+    showToast('ℹ️ Otwórz menu Chrome → "Dodaj do ekranu głównego"');
+  }
+}
+</script>
+
+<!-- INSTALL BANNER -->
+<div id="install-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#18181c;border-top:2px solid #f0c040;padding:14px 20px;align-items:center;justify-content:space-between;gap:12px;z-index:200;font-family:'JetBrains Mono',monospace;">
+  <div style="font-size:12px;color:#e8e8f0;">📲 <strong style="color:#f0c040;">Zainstaluj</strong> Podcast Tracker na telefonie jak apkę!</div>
+  <div style="display:flex;gap:8px;flex-shrink:0;">
+    <button onclick="installApp()" style="background:#f0c040;color:#0e0e10;border:none;border-radius:7px;padding:8px 16px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;">Zainstaluj</button>
+    <button onclick="document.getElementById('install-banner').style.display='none'" style="background:transparent;color:#888;border:1px solid #2e2e38;border-radius:7px;padding:8px 12px;font-size:12px;cursor:pointer;">✕</button>
+  </div>
+</div>
+
+</body>
+</html>

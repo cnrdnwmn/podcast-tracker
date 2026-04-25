@@ -211,7 +211,7 @@
   .filter-btn[data-type="podcast"].active { border-color: var(--podcast); color: var(--podcast); }
   .filter-btn[data-type="short"].active { border-color: var(--shorts); color: var(--shorts); }
 
-  .episode-table { width: 100%; border-collapse: collapse; }
+  .episode-table { display: none; }
   .episode-table th {
     font-family: 'Syne', sans-serif;
     font-size: 10px;
@@ -399,7 +399,7 @@
   }
 
   /* Ukryj karty na desktop */
-  .cards-mobile { display: none; }
+  .cards-mobile { display: flex; flex-direction: column; gap: 10px; }
 
   @media (max-width: 600px) {
     header { padding: 14px; }

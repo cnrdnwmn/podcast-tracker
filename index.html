@@ -820,13 +820,15 @@ function deleteEntry() {
 function setFilter(type, btn) {
   filterType = type;
   document.querySelectorAll('[data-type]').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  if (btn) btn.classList.add('active');
+  else document.querySelector(`[data-type="${type}"]`)?.classList.add('active');
   renderEpisodes();
 }
 function setStatusFilter(status, btn) {
   filterStatus = status;
   document.querySelectorAll('[data-status]').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  if (btn) btn.classList.add('active');
+  else document.querySelector(`[data-status="${status}"]`)?.classList.add('active');
   renderEpisodes();
 }
 

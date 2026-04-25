@@ -374,7 +374,7 @@
     .episode-table { display: none; }
 
     /* Pokaż karty na mobile */
-    .cards-mobile { display: flex; flex-direction: column; gap: 10px; }
+    .cards-mobile { display: flex !important; flex-direction: column; gap: 10px; }
 
     .ep-card {
       background: var(--surface);
@@ -399,7 +399,7 @@
   }
 
   /* Ukryj karty na desktop */
-  .cards-mobile { display: flex; flex-direction: column; gap: 10px; }
+  .cards-mobile { display: flex !important; flex-direction: column; gap: 10px; }
 
   @media (max-width: 600px) {
     header { padding: 14px; }

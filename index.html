@@ -358,21 +358,51 @@
     .form-grid { grid-template-columns: 1fr; }
   }
 
-  /* MOBILE TOUCH IMPROVEMENTS */
+  /* MOBILE — karty zamiast tabeli */
   @media (max-width: 768px) {
-    .tab { padding: 10px 14px; font-size: 12px; }
+    header { padding: 16px; gap: 10px; }
+    .logo { font-size: 17px; }
+    .tab { padding: 8px 10px; font-size: 11px; }
     .btn { min-height: 44px; }
-    .episode-row td { padding: 12px 10px; }
-    .filter-btn { min-height: 40px; padding: 8px 12px; }
-    /* Larger modal on mobile */
-    .modal { padding: 20px; border-radius: 0; max-height: 100vh; margin: 0; border-radius: 14px 14px 0 0; }
+    .filter-btn { min-height: 40px; padding: 8px 10px; font-size: 10px; }
+    input, select, textarea { font-size: 16px; }
+    .modal { padding: 20px; border-radius: 14px 14px 0 0; }
     .modal-overlay { align-items: flex-end; padding: 0; }
-    input, select, textarea { font-size: 16px; } /* prevents iOS zoom */
-    /* hide some table columns on small screens */
-    .episode-table th:nth-child(5),
-    .episode-table td:nth-child(5),
-    .episode-table th:nth-child(7),
-    .episode-table td:nth-child(7) { display: none; }
+    #episodes-view, #plan-view, #mindmap-view { padding: 14px; }
+
+    /* Ukryj tabelę na mobile */
+    .episode-table { display: none; }
+
+    /* Pokaż karty na mobile */
+    .cards-mobile { display: flex; flex-direction: column; gap: 10px; }
+
+    .ep-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .ep-card:active { border-color: var(--accent); }
+    .ep-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .ep-card-title { font-size: 13px; font-weight: 600; flex: 1; min-width: 0; }
+    .ep-card-meta { font-size: 10px; color: var(--muted); margin-top: 4px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .ep-card-notes { font-size: 10px; color: var(--muted); margin-top: 4px; }
+    .ep-card-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+
+    .toolbar { gap: 8px; }
+    .filter-group { flex-wrap: wrap; }
+    .stat { padding: 10px 12px; }
+    .stat-num { font-size: 18px; }
+    .stat-label { font-size: 9px; }
+  }
+
+  /* Ukryj karty na desktop */
+  .cards-mobile { display: none; }
+
+  @media (max-width: 600px) {
+    header { padding: 14px; }
   }
 </style>
 </head>
@@ -424,6 +454,7 @@
     </thead>
     <tbody id="episodes-tbody"></tbody>
   </table>
+  <div class="cards-mobile" id="episodes-cards"></div>
 </div>
 
 <!-- PLAN VIEW -->
@@ -570,6 +601,27 @@ function renderEpisodes() {
       <td style="font-size:11px;color:var(--muted);">${e.date||'—'}</td>
     </tr>
   `).join('') || `<tr><td colspan="7" style="padding:40px;text-align:center;color:var(--muted);">Brak wpisów · dodaj pierwszy odcinek!</td></tr>`;
+
+  // Mobile cards
+  const cards = document.getElementById('episodes-cards');
+  cards.innerHTML = d.map(e => `
+    <div class="ep-card" onclick="openModal(${e.id})">
+      <div class="ep-card-top">
+        <span class="type-badge type-${e.type}">${e.type==='podcast'?'🎙':'📱'}</span>
+        <div class="ep-card-title">${e.title || 'Bez tytułu'}</div>
+        <span style="font-size:10px;color:var(--muted);">${e.num||''}</span>
+      </div>
+      <div class="ep-card-meta">
+        <span><span class="status-dot status-${statusIcon[e.status]}"></span>${e.status==='published'?'Opublikowane':e.status==='planned'?'Zaplanowane':'Szkic'}</span>
+        ${e.date ? `<span>📅 ${e.date}</span>` : ''}
+        ${e.location ? `<span>📍 ${e.location}</span>` : ''}
+        ${e.dur ? `<span>⏱ ${e.dur} min</span>` : ''}
+      </div>
+      ${e.notes ? `<div class="ep-card-notes">${e.notes.substring(0,80)}${e.notes.length>80?'…':''}</div>` : ''}
+      ${(e.tags||[]).length ? `<div class="ep-card-tags">${e.tags.slice(0,4).map(t=>`<span class="topic-tag">${t}</span>`).join('')}</div>` : ''}
+      ${e.todo ? `<div style="font-size:9px;color:var(--accent2);margin-top:6px;">⚠ TODO: ${e.todo.substring(0,60)}${e.todo.length>60?'…':''}</div>` : ''}
+    </div>
+  `).join('') || `<div style="padding:40px;text-align:center;color:var(--muted);">Brak wpisów · dodaj pierwszy odcinek!</div>`;
 }
 
 // ── RENDER PLAN ──────────────────────────────────────────────────────────────
